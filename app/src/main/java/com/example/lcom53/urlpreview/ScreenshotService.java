@@ -45,6 +45,7 @@ public class ScreenshotService extends Service {
             // This is the important code :)
             webview.setDrawingCacheEnabled(true);
             webview.getSettings().setUserAgentString("Mozilla/5.0 (Linux; U; Android 4.0.3; ko-kr; LG-L160L Build/IML74K) AppleWebkit/534.30 (KHTML, like Gecko) Version/4.0 Mobile Safari/534.30");
+            webview.getSettings().setJavaScriptEnabled(true);
             //width x height of your webview and the resulting screenshot
             webview.measure(width, height);
             webview.layout(0, 0, width, height);

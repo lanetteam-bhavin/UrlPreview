@@ -29,6 +29,7 @@
         android:text="Send" />
 
     <RelativeLayout
+        android:visibility="gone"
         android:id="@+id/rlDemo"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -37,7 +38,7 @@
         <ImageView
             android:id="@+id/ivBackground"
             android:layout_width="wrap_content"
-            android:layout_height="150dp" />
+            android:layout_height="wrap_content" />
 
         <View
             android:layout_width="wrap_content"
@@ -50,12 +51,12 @@
 
         <ImageView
             android:id="@+id/ivFevicon"
-            android:layout_width="22dp"
-            android:layout_height="22dp"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
             android:layout_alignBottom="@+id/ivBackground"
             android:layout_marginBottom="5dp"
             android:layout_marginLeft="5dp"
-            android:background="#fff" />
+            android:background="#00ffffff" />
 
         <TextView
             android:id="@+id/tvUrlTitle"
@@ -69,7 +70,7 @@
             android:gravity="center_vertical"
             android:text="www.skype.com"
             android:textColor="#ffffff"
-            android:textSize="11sp" />
+            android:textSize="9sp" />
 
         <TextView
 
@@ -83,7 +84,7 @@
             android:singleLine="true"
             android:text="Description"
             android:textColor="#ddffffff"
-            android:textSize="13sp" />
+            android:textSize="11sp" />
 
         <TextView
             android:id="@+id/tvTitle"
@@ -96,8 +97,15 @@
             android:singleLine="true"
             android:text="Skype |Free calls"
             android:textColor="#ddffffff"
-            android:textSize="15sp"
+            android:textSize="13sp"
             android:textStyle="bold" />
     </RelativeLayout>
+
+    <WebView
+        android:id="@+id/testWV"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/rlDemo"
+        android:visibility="gone" />
 
 </RelativeLayout>

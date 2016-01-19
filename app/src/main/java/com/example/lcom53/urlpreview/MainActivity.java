@@ -21,7 +21,9 @@ import android.support.design.widget.Snackbar;
 import android.support.v4.content.LocalBroadcastManager;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
+import android.text.Spannable;
 import android.text.TextUtils;
+import android.text.util.Linkify;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.Patterns;
@@ -48,16 +50,21 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
+import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.net.MalformedURLException;
 import java.net.SocketTimeoutException;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Locale;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -72,6 +79,9 @@ public class MainActivity extends AppCompatActivity {
     int width = 0, height = 0;
     public static final String ACTION_IMAGE_SAVED = "imageSaved";
     int imageMinHeight = 0, imageMaxWidth = 0;
+
+    boolean bgLoaded = false, feviconLoaded = false;
+    MessageObject messageObject;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -99,8 +109,13 @@ public class MainActivity extends AppCompatActivity {
         tvSend.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                String urlToCheck = etUrl.getText().toString();
-                new Urlparser().execute(urlToCheck);
+                ArrayList<LinkSpec> links = new ArrayList<LinkSpec>();
+                gatherLinks(links, etUrl.getText().toString(), Patterns.WEB_URL,
+                        new String[]{"http://", "https://", "rtsp://"},
+                        Linkify.sUrlMatchFilter, null);
+//                String urlToCheck = etUrl.getText().toString();
+//                new Urlparser().execute(urlToCheck);
+
             }
         });
         rlDemo = (RelativeLayout) findViewById(R.id.rlDemo);
@@ -109,11 +124,64 @@ public class MainActivity extends AppCompatActivity {
         tvUrlTitle = (TextView) findViewById(R.id.tvUrlTitle);
         tvDescription = (TextView) findViewById(R.id.tvDescription);
         tvTitle = (TextView) findViewById(R.id.tvTitle);
-        File file = new File("/storage/sdcard0/Android/data/com.example.lcom53.urlpreview/files/http%3A%2F%2Fwww.twitter.com.png");
-        if (file.exists()) {
-            ivBackground.setTag(target1);
-            Picasso.with(this).load(file).into(target1);
+    }
+
+    public static class LinkSpec {
+        String url;
+        int start;
+        int end;
+    }
+
+    private static final ArrayList<LinkSpec> gatherLinks(ArrayList<LinkSpec> links,
+                                                         String s, Pattern pattern, String[] schemes,
+                                                         Linkify.MatchFilter matchFilter, Linkify.TransformFilter transformFilter) {
+        Matcher m = pattern.matcher(s);
+
+        while (m.find()) {
+            int start = m.start();
+            int end = m.end();
+
+            if (matchFilter == null || matchFilter.acceptMatch(s, start, end)) {
+                LinkSpec spec = new LinkSpec();
+                String url = makeUrl(m.group(0), schemes, m, transformFilter);
+                spec.url = url;
+                spec.start = start;
+                spec.end = end;
+                links.add(spec);
+                Log.d("TAG", "Link found :" + spec.url + ":" + spec.start + ":" + spec.end);
+            }
         }
+        return links;
+    }
+
+    private static final String makeUrl(String url, String[] prefixes,
+                                        Matcher m, Linkify.TransformFilter filter) {
+        if (filter != null) {
+            url = filter.transformUrl(m, url);
+        }
+
+        boolean hasPrefix = false;
+
+        for (int i = 0; i < prefixes.length; i++) {
+            if (url.regionMatches(true, 0, prefixes[i], 0,
+                    prefixes[i].length())) {
+                hasPrefix = true;
+
+                // Fix capitalization if necessary
+                if (!url.regionMatches(false, 0, prefixes[i], 0,
+                        prefixes[i].length())) {
+                    url = prefixes[i] + url.substring(prefixes[i].length());
+                }
+
+                break;
+            }
+        }
+
+        if (!hasPrefix) {
+            url = prefixes[0] + url;
+        }
+
+        return url;
     }
 
     Target target1 = new Target() {
@@ -141,7 +209,10 @@ public class MainActivity extends AppCompatActivity {
             }
             Bitmap scaledBitmap = Bitmap.createScaledBitmap(bitmap, (int) modifyWidth, (int) modifyHeight, false);
             ivBackground.setImageBitmap(scaledBitmap);
-
+            messageObject.setHeight((int) modifyHeight);
+            messageObject.setWidth((int) modifyWidth);
+            bgLoaded = true;
+            getRVSnap();
         }
 
         @Override
@@ -159,6 +230,8 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onBitmapLoaded(Bitmap bitmap, Picasso.LoadedFrom from) {
             ivFevicon.setImageBitmap(bitmap);
+            feviconLoaded = true;
+            getRVSnap();
         }
 
         @Override
@@ -172,12 +245,34 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
+    public void getRVSnap() {
+        if (bgLoaded && feviconLoaded) {
+            rlDemo.setDrawingCacheEnabled(true);
+            rlDemo.measure(messageObject.width, messageObject.height);
+            rlDemo.layout(0, 0, messageObject.width, messageObject.height);
+            Bitmap b = rlDemo.getDrawingCache();
+            File file1 = getExternalFilesDir(null);
+            File file = new File(file1, Uri.encode(messageObject.getDomainName()));
+            OutputStream out;
+            try {
+                out = new BufferedOutputStream(new FileOutputStream(file));
+                b.compress(Bitmap.CompressFormat.PNG, 100, out);
+                out.close();
+                Log.d("ScreenshotService", "File save @:" + file.getAbsolutePath());
+            } catch (IOException e) {
+                Log.e("ScreenshotService", "IOException while trying to save thumbnail, Is /sdcard/ writable?");
+                e.printStackTrace();
+            }
+            bgLoaded = false;
+            feviconLoaded = false;
+        }
+    }
+
     public float dpToPx(int dp) {
         Resources r = getResources();
         float px = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, r.getDisplayMetrics());
         return px;
     }
-
 
     @Override
     protected void onPause() {
@@ -195,24 +290,24 @@ public class MainActivity extends AppCompatActivity {
     private BroadcastReceiver mImageSavedReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            MessageObject msgObj = (MessageObject) intent.getSerializableExtra("ImageSaved");
-            Log.d(TAG, "Domain name is:" + msgObj.getDomainName() + ":File saved at:" + msgObj.getDomainSnap());
-            if (!TextUtils.isEmpty(msgObj.getFevicon())) {
+            messageObject = (MessageObject) intent.getSerializableExtra("ImageSaved");
+            Log.d(TAG, "Domain name is:" + messageObject.getDomainName() + ":File saved at:" + messageObject.getDomainSnap());
+            if (!TextUtils.isEmpty(messageObject.getFevicon())) {
                 ivFevicon.setTag(feviconTarget);
                 Picasso.with(MainActivity.this)
-                        .load(msgObj.getFevicon())
+                        .load(messageObject.getFevicon())
                         .into(feviconTarget);
             }
             ivBackground.setTag(target1);
-            File file = new File(msgObj.domainSnap);
+            File file = new File(messageObject.domainSnap);
             if (file.exists()) {
                 Picasso.with(MainActivity.this)
                         .load(file)
                         .into(target1);
             }
-            tvTitle.setText(msgObj.getTitleDescription());
-            tvDescription.setText(msgObj.getSubTitleDescription());
-            tvUrlTitle.setText(msgObj.getDomainName());
+            tvTitle.setText(messageObject.getTitleDescription());
+            tvDescription.setText(messageObject.getSubTitleDescription());
+            tvUrlTitle.setText(messageObject.getDomainName());
         }
     };
 
@@ -223,7 +318,7 @@ public class MainActivity extends AppCompatActivity {
         String fevicon = "";
         String domainName = "";
         String image = "";
-        MessageObject messageObject;
+
         URL url;
 
         @Override
@@ -251,17 +346,18 @@ public class MainActivity extends AppCompatActivity {
                 e.printStackTrace();
                 url = null;
             }
+
             parseUrl(domainName);
             return null;
         }
 
         @Override
         protected void onPostExecute(String s) {
+            messageObject.setFevicon(fevicon);
+            messageObject.setTitleDescription(title);
+            messageObject.setSubTitleDescription(subTitle);
             if (TextUtils.isEmpty(image)) {
 //                webView.loadUrl(domainName);
-                messageObject.setFevicon(fevicon);
-                messageObject.setTitleDescription(title);
-                messageObject.setSubTitleDescription(subTitle);
                 Intent intent = new Intent(MainActivity.this, ScreenshotService.class);
                 intent.putExtra("messageObject", messageObject);
                 intent.putExtra("URL", domainName);
@@ -290,7 +386,6 @@ public class MainActivity extends AppCompatActivity {
 
         public void parseUrl(String urlToCheck) {
             if (!TextUtils.isEmpty(urlToCheck)) {
-
                 if (Patterns.WEB_URL.matcher(urlToCheck).matches()) {
                     Log.d(TAG, "Look like a web link");
                     try {
@@ -315,6 +410,15 @@ public class MainActivity extends AppCompatActivity {
                                         fevicon = "http:" + fevicon;
                                     } else if (fevicon.startsWith("/")) {
                                         fevicon = domainName + fevicon;
+                                    }
+                                    try {
+                                        URL url1 = new URL(fevicon);
+                                        Log.d(TAG, "Url is:" + url1.getAuthority() + ":" + url1.getAuthority() + ":" + url1.getPath());
+                                    } catch (MalformedURLException e) {
+                                        Log.d(TAG, " :" + e.getMessage());
+                                        if (url != null) {
+                                            fevicon = url.getProtocol() + "://" + url.getAuthority() + (fevicon.startsWith("/") ? "" : "/") + fevicon;
+                                        }
                                     }
                                     Log.d(TAG, "Fevicon icon url is :" + fevicon);
                                     break;
