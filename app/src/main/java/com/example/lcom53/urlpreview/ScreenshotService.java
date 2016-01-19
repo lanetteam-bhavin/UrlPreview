@@ -29,6 +29,7 @@ public class ScreenshotService extends Service {
     private WebView webview;
     String domainName, PathToSave;
     int width = 0, height = 0;
+    MessageObject messageObject;
 
     // Handler that receives messages from the thread
     private final class ServiceHandler extends Handler {
@@ -43,11 +44,13 @@ public class ScreenshotService extends Service {
 //            Toast.makeText(ScreenshotService.this, "Taking screenshot...", Toast.LENGTH_SHORT).show();
             // This is the important code :)
             webview.setDrawingCacheEnabled(true);
+            webview.getSettings().setUserAgentString("Mozilla/5.0 (Linux; U; Android 4.0.3; ko-kr; LG-L160L Build/IML74K) AppleWebkit/534.30 (KHTML, like Gecko) Version/4.0 Mobile Safari/534.30");
             //width x height of your webview and the resulting screenshot
             webview.measure(width, height);
             webview.layout(0, 0, width, height);
             webview.loadUrl(domainName);
             webview.setWebViewClient(new WebViewClient() {
+
                 @Override
                 public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
                     //without this method, your app may crash...
@@ -57,7 +60,6 @@ public class ScreenshotService extends Service {
                 public void onPageFinished(WebView view, String url) {
                     new takeScreenshotTask().execute();
                     stopSelf();
-
                 }
             });
         }
@@ -71,7 +73,7 @@ public class ScreenshotService extends Service {
             //allow the webview to render
             synchronized (this) {
                 try {
-                    wait(350);
+                    wait(1000);
                 } catch (InterruptedException e) {
                 }
             }
@@ -84,8 +86,10 @@ public class ScreenshotService extends Service {
                 b.compress(Bitmap.CompressFormat.PNG, 100, out);
                 out.close();
                 Log.d("ScreenshotService", "File save @:" + file.getAbsolutePath());
-                Intent intent =
-                LocalBroadcastManager.getInstance(ScreenshotService.this).sendBroadcast(null);
+                Intent intent = new Intent(MainActivity.ACTION_IMAGE_SAVED);
+                messageObject.setDomainSnap(file.getAbsolutePath());
+                intent.putExtra("ImageSaved", messageObject);
+                LocalBroadcastManager.getInstance(ScreenshotService.this).sendBroadcast(intent);
             } catch (IOException e) {
                 Log.e("ScreenshotService", "IOException while trying to save thumbnail, Is /sdcard/ writable?");
 
@@ -114,6 +118,7 @@ public class ScreenshotService extends Service {
         width = intent.getIntExtra("Width", 600);
         height = intent.getIntExtra("Height", 400);
         PathToSave = intent.getStringExtra("Path");
+        messageObject = (MessageObject) intent.getSerializableExtra("messageObject");
         msg = mServiceHandler.obtainMessage();
         msg.arg1 = startId;
         mServiceHandler.sendMessage(msg);

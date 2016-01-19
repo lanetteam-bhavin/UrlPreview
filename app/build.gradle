@@ -26,4 +26,5 @@ dependencies {
     compile 'com.android.support:design:23.+'
     compile 'org.jsoup:jsoup:1.7.3'
     compile 'com.squareup.picasso:picasso:2.5.2'
+    compile 'com.android.support:percent:23.1.0'
 }
