@@ -13,6 +13,16 @@ public class MessageObject implements Serializable {
     String subTitleDescription;
     int height, width;
 
+    public String getRespId() {
+        return respId;
+    }
+
+    public void setRespId(String respId) {
+        this.respId = respId;
+    }
+
+    String respId;
+
     public int getHeight() {
         return height;
     }

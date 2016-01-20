@@ -18,6 +18,7 @@ import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
 import android.support.v4.content.LocalBroadcastManager;
@@ -48,6 +49,7 @@ import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
+import com.example.lcom53.urlpreview.workers.UrlPreviewMainWorker;
 import com.nostra13.universalimageloader.core.DisplayImageOptions;
 import com.nostra13.universalimageloader.core.ImageLoader;
 import com.nostra13.universalimageloader.core.ImageLoaderConfiguration;
@@ -71,12 +73,13 @@ import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Locale;
+import java.util.Random;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements UrlPreviewMainWorker.Callback {
 
     EditText etUrl;
     TextView tvSend;
@@ -99,6 +102,9 @@ public class MainActivity extends AppCompatActivity {
     protected ImageLoaderConfiguration config;
     protected File customCacheDirectory;
     protected DisplayImageOptions options;
+    public static final int LEFT_SIDE = 0;
+    public static final int RIGHT_SIDE = 1;
+    private UrlPreviewMainWorker mWorkerThread;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -149,6 +155,30 @@ public class MainActivity extends AppCompatActivity {
         rvlist.setAdapter(adapter);
         rvlist.setLayoutManager(linearLayoutManager);
         configureUIL();
+        String[] urls = new String[]{"http://developer.android.com/design/media/principles_delight.png",
+                "http://developer.android.com/design/media/principles_real_objects.png",
+                "http://developer.android.com/design/media/principles_make_it_mine.png",
+                "http://developer.android.com/design/media/principles_get_to_know_me.png"};
+        mWorkerThread = new UrlPreviewMainWorker("myWorkerThread", new Handler(), this);
+        mWorkerThread.start();
+        mWorkerThread.prepareHandler();
+        Random random = new Random();
+        for (String url : urls) {
+            mWorkerThread.queueTask(url, random.nextInt(2), new ImageView(this));
+        }
+
+
+    }
+
+    @Override
+    public void onImageDownloaded(ImageView imageView, Bitmap bitmap, int side) {
+        Log.d(TAG, "Image Downloaded:");
+//        imageView.setImageBitmap(bitmap);
+//        if (isVisible && side == LEFT_SIDE){
+//            mLeftSideLayout.addView(imageView);
+//        } else if (isVisible && side == RIGHT_SIDE){
+//            mRightSideLayout.addView(imageView);
+//        }
     }
 
     public class MyRVAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
