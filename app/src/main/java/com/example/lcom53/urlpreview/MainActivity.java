@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.res.Resources;
+import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
@@ -16,10 +17,13 @@ import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
 import android.support.v4.content.LocalBroadcastManager;
 import android.support.v7.app.AppCompatActivity;
+import android.support.v7.widget.LinearLayoutManager;
+import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.Toolbar;
 import android.text.Spannable;
 import android.text.TextUtils;
@@ -29,18 +33,24 @@ import android.util.Log;
 import android.util.Patterns;
 import android.util.TypedValue;
 import android.view.Display;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.ViewGroup;
 import android.webkit.URLUtil;
 import android.webkit.WebChromeClient;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
+import com.nostra13.universalimageloader.core.DisplayImageOptions;
+import com.nostra13.universalimageloader.core.ImageLoader;
+import com.nostra13.universalimageloader.core.ImageLoaderConfiguration;
 import com.squareup.picasso.Picasso;
 import com.squareup.picasso.Target;
 
@@ -82,6 +92,13 @@ public class MainActivity extends AppCompatActivity {
 
     boolean bgLoaded = false, feviconLoaded = false;
     MessageObject messageObject;
+    RecyclerView rvlist;
+    MyRVAdapter adapter;
+    ArrayList<MessageObject> messageObjectArrayList;
+    protected ImageLoader imageLoader = ImageLoader.getInstance();
+    protected ImageLoaderConfiguration config;
+    protected File customCacheDirectory;
+    protected DisplayImageOptions options;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -110,11 +127,11 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 ArrayList<LinkSpec> links = new ArrayList<LinkSpec>();
-                gatherLinks(links, etUrl.getText().toString(), Patterns.WEB_URL,
-                        new String[]{"http://", "https://", "rtsp://"},
-                        Linkify.sUrlMatchFilter, null);
-//                String urlToCheck = etUrl.getText().toString();
-//                new Urlparser().execute(urlToCheck);
+                links = gatherLinks(etUrl.getText().toString());
+                if (links.size() > 0) {
+                    String urlToCheck = "LoadUrl_" + etUrl.getText().toString();
+                    new Urlparser(urlToCheck).execute(links.get(0).url);
+                }
 
             }
         });
@@ -124,6 +141,81 @@ public class MainActivity extends AppCompatActivity {
         tvUrlTitle = (TextView) findViewById(R.id.tvUrlTitle);
         tvDescription = (TextView) findViewById(R.id.tvDescription);
         tvTitle = (TextView) findViewById(R.id.tvTitle);
+        rvlist = (RecyclerView) findViewById(R.id.rvlist);
+        LinearLayoutManager linearLayoutManager = new LinearLayoutManager(MainActivity.this);
+        linearLayoutManager.setOrientation(LinearLayoutManager.VERTICAL);
+        messageObjectArrayList = new ArrayList<>();
+        adapter = new MyRVAdapter(this, messageObjectArrayList);
+        rvlist.setAdapter(adapter);
+        rvlist.setLayoutManager(linearLayoutManager);
+        configureUIL();
+    }
+
+    public class MyRVAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
+        LayoutInflater layoutInflater;
+        ArrayList<MessageObject> mCurrentuser;
+        String msgToDisplay;
+        Context context;
+
+        public MyRVAdapter(Context context, ArrayList<MessageObject> currentUser) {
+            layoutInflater = LayoutInflater.from(context);
+            mCurrentuser = currentUser;
+            this.context = context;
+        }
+
+        @Override
+        public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
+            View view = layoutInflater.inflate(R.layout.row_chat_item, parent, false);
+            return new ChatViewHolder(view);
+        }
+
+        @Override
+        public void onBindViewHolder(RecyclerView.ViewHolder vh, int position) {
+            ChatViewHolder viewHolder = (ChatViewHolder) vh;
+            MessageObject chatItem = mCurrentuser.get(position);
+            msgToDisplay = chatItem.getDomainName().trim();
+            if (msgToDisplay.startsWith("LoadUrl_")) {
+                msgToDisplay = msgToDisplay.replace("LoadUrl_", "").trim();
+            }
+            ArrayList<LinkSpec> linkSpecs = gatherLinks(msgToDisplay);
+            if (linkSpecs.size() > 0) {
+                viewHolder.llimagecontainer.removeAllViews();
+                for (int i = 0; i < linkSpecs.size(); i++) {
+                    ImageView imageView = createImageView(i, viewHolder.llimagecontainer);
+                    File file1 = context.getExternalFilesDir(null);
+                    File file = new File(file1, Uri.encode(linkSpecs.get(i).url));
+                    if (file.exists()) {
+                        viewHolder.llimagecontainer.setVisibility(View.VISIBLE);
+                        ImageLoader.getInstance().displayImage("file://" + file.getAbsolutePath(), imageView);
+                    } else {
+                        viewHolder.llimagecontainer.setVisibility(View.GONE);
+                    }
+                }
+            }
+        }
+
+        public ImageView createImageView(int index, LinearLayout parent) {
+            ImageView imageView = new ImageView(context);
+            imageView.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+            imageView.setId((index * 100) + index);
+            parent.addView(imageView, index);
+            return imageView;
+        }
+
+        @Override
+        public int getItemCount() {
+            return mCurrentuser.size();
+        }
+
+        public class ChatViewHolder extends RecyclerView.ViewHolder {
+            LinearLayout llimagecontainer;
+
+            ChatViewHolder(View itemView) {
+                super(itemView);
+                llimagecontainer = (LinearLayout) itemView.findViewById(R.id.llimagecontainer);
+                llimagecontainer.setVisibility(View.GONE);
+            }
+        }
     }
 
     public static class LinkSpec {
@@ -137,6 +229,30 @@ public class MainActivity extends AppCompatActivity {
                                                          Linkify.MatchFilter matchFilter, Linkify.TransformFilter transformFilter) {
         Matcher m = pattern.matcher(s);
 
+        while (m.find()) {
+            int start = m.start();
+            int end = m.end();
+
+            if (matchFilter == null || matchFilter.acceptMatch(s, start, end)) {
+                LinkSpec spec = new LinkSpec();
+                String url = makeUrl(m.group(0), schemes, m, transformFilter);
+                spec.url = url;
+                spec.start = start;
+                spec.end = end;
+                links.add(spec);
+                Log.d("TAG", "Link found :" + spec.url + ":" + spec.start + ":" + spec.end);
+            }
+        }
+        return links;
+    }
+
+    public static final ArrayList<LinkSpec> gatherLinks(String s) {
+        ArrayList<LinkSpec> links = new ArrayList<>();
+        Pattern pattern = Patterns.WEB_URL;
+        String[] schemes = new String[]{"http://", "https://", "rtsp://"};
+        Linkify.MatchFilter matchFilter = Linkify.sUrlMatchFilter;
+        Linkify.TransformFilter transformFilter = null;
+        Matcher m = pattern.matcher(s);
         while (m.find()) {
             int start = m.start();
             int end = m.end();
@@ -237,6 +353,8 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onBitmapFailed(Drawable errorDrawable) {
             Log.d(TAG, "Bitmap failed");
+            feviconLoaded = true;
+            getRVSnap();
         }
 
         @Override
@@ -265,6 +383,8 @@ public class MainActivity extends AppCompatActivity {
             }
             bgLoaded = false;
             feviconLoaded = false;
+            messageObjectArrayList.add(messageObject);
+            adapter.notifyDataSetChanged();
         }
     }
 
@@ -318,13 +438,18 @@ public class MainActivity extends AppCompatActivity {
         String fevicon = "";
         String domainName = "";
         String image = "";
-
         URL url;
+        String mFevicon = "";
+
+        public Urlparser(String domainName) {
+            messageObject = new MessageObject();
+            messageObject.setDomainName(domainName);
+        }
 
         @Override
         protected void onPreExecute() {
             super.onPreExecute();
-            messageObject = new MessageObject();
+
         }
 
         @Override
@@ -404,25 +529,33 @@ public class MainActivity extends AppCompatActivity {
                         for (Element element : elements) {
                             String relValue = element.attr("rel");
                             if (!TextUtils.isEmpty(relValue)) {
-                                if (relValue.equals("shortcut icon") || relValue.equals("icon")) {
-                                    fevicon = element.attr("href");
-                                    if (fevicon.startsWith("//")) {
-                                        fevicon = "http:" + fevicon;
-                                    } else if (fevicon.startsWith("/")) {
-                                        fevicon = domainName + fevicon;
-                                    }
-                                    try {
-                                        URL url1 = new URL(fevicon);
-                                        Log.d(TAG, "Url is:" + url1.getAuthority() + ":" + url1.getAuthority() + ":" + url1.getPath());
-                                    } catch (MalformedURLException e) {
-                                        Log.d(TAG, " :" + e.getMessage());
-                                        if (url != null) {
-                                            fevicon = url.getProtocol() + "://" + url.getAuthority() + (fevicon.startsWith("/") ? "" : "/") + fevicon;
-                                        }
-                                    }
-                                    Log.d(TAG, "Fevicon icon url is :" + fevicon);
-                                    break;
+                                if (relValue.equals("icon")) {
+                                    mFevicon = element.attr("href");
+                                } else if (relValue.equals("shortcut icon")) {
+                                    mFevicon = element.attr("href");
                                 }
+                                if (TextUtils.isEmpty(fevicon)) {
+                                    fevicon = mFevicon;
+                                } else {
+                                    if (!mFevicon.contains(".svg")) {
+                                        fevicon = mFevicon;
+                                    }
+                                }
+                                if (fevicon.startsWith("//")) {
+                                    fevicon = "http:" + fevicon;
+                                } else if (fevicon.startsWith("/")) {
+                                    fevicon = domainName + fevicon;
+                                }
+                                try {
+                                    URL url1 = new URL(fevicon);
+                                    Log.d(TAG, "Url is:" + url1.getAuthority() + ":" + url1.getAuthority() + ":" + url1.getPath());
+                                } catch (MalformedURLException e) {
+                                    Log.d(TAG, " :" + e.getMessage());
+                                    if (url != null) {
+                                        fevicon = url.getProtocol() + "://" + url.getAuthority() + (fevicon.startsWith("/") ? "" : "/") + fevicon;
+                                    }
+                                }
+                                Log.d(TAG, "Fevicon icon url is :" + fevicon);
                             }
                         }
                         if (TextUtils.isEmpty(fevicon)) {
@@ -490,5 +623,16 @@ public class MainActivity extends AppCompatActivity {
             return true;
         }
         return super.onOptionsItemSelected(item);
+    }
+
+    private void configureUIL() {
+        options = new DisplayImageOptions.Builder()
+                .cacheInMemory(true)
+                .cacheOnDisk(true)
+                .considerExifParams(true)
+                .bitmapConfig(Bitmap.Config.RGB_565)
+                .build();
+        config = new ImageLoaderConfiguration.Builder(this).build();
+        imageLoader.init(config);
     }
 }

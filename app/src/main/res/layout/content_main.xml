@@ -28,12 +28,18 @@
         android:layout_marginTop="8dp"
         android:text="Send" />
 
+    <android.support.v7.widget.RecyclerView
+        android:id="@+id/rvlist"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@+id/etUrl" />
+
     <RelativeLayout
-        android:visibility="gone"
         android:id="@+id/rlDemo"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_below="@+id/etUrl">
+        android:layout_below="@+id/etUrl"
+        android:visibility="gone">
 
         <ImageView
             android:id="@+id/ivBackground"
