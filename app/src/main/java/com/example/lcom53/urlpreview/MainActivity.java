@@ -91,7 +91,7 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
     Point size;
     int width = 0, height = 0;
     public static final String ACTION_IMAGE_SAVED = "imageSaved";
-    int imageMinHeight = 0, imageMaxWidth = 0;
+    public static int imageMinHeight = 0, imageMaxWidth = 0;
 
     boolean bgLoaded = false, feviconLoaded = false;
     MessageObject messageObject;
@@ -105,6 +105,7 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
     public static final int LEFT_SIDE = 0;
     public static final int RIGHT_SIDE = 1;
     private UrlPreviewMainWorker mWorkerThread;
+    Random random;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -118,6 +119,7 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
         width = size.x;
         height = size.y;
         imageMinHeight = (int) dpToPx(150);
+        random = new Random();
         imageMaxWidth = (int) (width - (dpToPx(10) * 2));
         FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
         fab.setOnClickListener(new View.OnClickListener() {
@@ -136,7 +138,14 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
                 links = gatherLinks(etUrl.getText().toString());
                 if (links.size() > 0) {
                     String urlToCheck = "LoadUrl_" + etUrl.getText().toString();
-                    new Urlparser(urlToCheck).execute(links.get(0).url);
+                    for (int i = 0; i < links.size(); i++) {
+                        MessageObject messageObject = new MessageObject();
+                        messageObject.setDomainName(links.get(i).url);
+                        messageObject.setWidth(width);
+                        messageObject.setHeight(400);
+                        mWorkerThread.queueTask(links.get(i).url, random.nextInt(2), messageObject);
+                    }
+//                    new Urlparser(urlToCheck).execute(links.get(0).url);
                 }
 
             }
@@ -155,30 +164,37 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
         rvlist.setAdapter(adapter);
         rvlist.setLayoutManager(linearLayoutManager);
         configureUIL();
-        String[] urls = new String[]{"http://developer.android.com/design/media/principles_delight.png",
-                "http://developer.android.com/design/media/principles_real_objects.png",
-                "http://developer.android.com/design/media/principles_make_it_mine.png",
-                "http://developer.android.com/design/media/principles_get_to_know_me.png"};
         mWorkerThread = new UrlPreviewMainWorker("myWorkerThread", new Handler(), this);
         mWorkerThread.start();
         mWorkerThread.prepareHandler();
-        Random random = new Random();
-        for (String url : urls) {
-            mWorkerThread.queueTask(url, random.nextInt(2), new ImageView(this));
-        }
-
-
     }
 
     @Override
-    public void onImageDownloaded(ImageView imageView, Bitmap bitmap, int side) {
-        Log.d(TAG, "Image Downloaded:");
-//        imageView.setImageBitmap(bitmap);
-//        if (isVisible && side == LEFT_SIDE){
-//            mLeftSideLayout.addView(imageView);
-//        } else if (isVisible && side == RIGHT_SIDE){
-//            mRightSideLayout.addView(imageView);
-//        }
+    public void onImageDownloaded(MessageObject messageObject2, Bitmap bitmapFevicon, Bitmap bitmapBackground) {
+        if (TextUtils.isEmpty(messageObject2.getDomainSnap())) {
+//                webView.loadUrl(domainName);
+            Intent intent = new Intent(MainActivity.this, ScreenshotService.class);
+            intent.putExtra("messageObject", messageObject2);
+            intent.putExtra("URL", messageObject2.domainName);
+            intent.putExtra("Width", width);
+            intent.putExtra("Height", 400);
+            File file = getExternalFilesDir(null);
+            File imageSaveAs = new File(file, Uri.encode(messageObject2.getDomainSnap()) + ".png");
+            intent.putExtra("Path", "" + imageSaveAs.getPath());
+            startService(intent);
+        } else {
+            if (bitmapFevicon != null) {
+                ivFevicon.setImageBitmap(bitmapFevicon);
+                ivFevicon.setVisibility(View.VISIBLE);
+            } else {
+                ivFevicon.setVisibility(View.INVISIBLE);
+            }
+            ivBackground.setImageBitmap(bitmapBackground);
+            tvTitle.setText(messageObject2.getTitleDescription());
+            tvDescription.setText(messageObject2.getSubTitleDescription());
+            tvUrlTitle.setText(messageObject2.getDomainName());
+            getRVSnapNoCheck(messageObject2);
+        }
     }
 
     public class MyRVAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
@@ -204,6 +220,7 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
             ChatViewHolder viewHolder = (ChatViewHolder) vh;
             MessageObject chatItem = mCurrentuser.get(position);
             msgToDisplay = chatItem.getDomainName().trim();
+            Log.d(TAG, "message to display" + msgToDisplay);
             if (msgToDisplay.startsWith("LoadUrl_")) {
                 msgToDisplay = msgToDisplay.replace("LoadUrl_", "").trim();
             }
@@ -213,12 +230,14 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
                 for (int i = 0; i < linkSpecs.size(); i++) {
                     ImageView imageView = createImageView(i, viewHolder.llimagecontainer);
                     File file1 = context.getExternalFilesDir(null);
-                    File file = new File(file1, Uri.encode(linkSpecs.get(i).url));
+                    File file = new File(file1, Uri.encode(linkSpecs.get(i).url) + ".png");
                     if (file.exists()) {
                         viewHolder.llimagecontainer.setVisibility(View.VISIBLE);
                         ImageLoader.getInstance().displayImage("file://" + file.getAbsolutePath(), imageView);
+                        Log.d(TAG, "File exists :" + file.getAbsolutePath());
                     } else {
                         viewHolder.llimagecontainer.setVisibility(View.GONE);
+                        Log.d(TAG, "File not exists :" + file.getAbsolutePath());
                     }
                 }
             }
@@ -358,7 +377,7 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
             messageObject.setHeight((int) modifyHeight);
             messageObject.setWidth((int) modifyWidth);
             bgLoaded = true;
-            getRVSnap();
+//            getRVSnap();
         }
 
         @Override
@@ -416,6 +435,30 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
             messageObjectArrayList.add(messageObject);
             adapter.notifyDataSetChanged();
         }
+    }
+
+    public void getRVSnapNoCheck(MessageObject messageObject1) {
+        rlDemo.setDrawingCacheEnabled(true);
+        rlDemo.measure(messageObject1.width, messageObject1.height);
+        rlDemo.layout(0, 0, messageObject1.width, messageObject1.height);
+        Bitmap b = rlDemo.getDrawingCache();
+        File file1 = getExternalFilesDir(null);
+        File file = new File(file1, Uri.encode(messageObject1.getDomainName()) + ".png");
+        OutputStream out;
+        try {
+            out = new BufferedOutputStream(new FileOutputStream(file));
+            b.compress(Bitmap.CompressFormat.PNG, 100, out);
+            out.close();
+            Log.d("ScreenshotService", "File save @:" + file.getAbsolutePath());
+        } catch (IOException e) {
+            Log.e("ScreenshotService", "IOException while trying to save thumbnail, Is /sdcard/ writable?");
+            e.printStackTrace();
+        }
+        bgLoaded = false;
+        feviconLoaded = false;
+        messageObjectArrayList.add(messageObject1);
+        adapter.notifyDataSetChanged();
+
     }
 
     public float dpToPx(int dp) {
