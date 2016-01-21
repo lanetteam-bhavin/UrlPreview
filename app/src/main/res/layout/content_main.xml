@@ -32,79 +32,11 @@
         android:id="@+id/rvlist"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_below="@+id/etUrl" />
+        android:layout_below="@+id/etUrl"
+        android:visibility="visible" />
 
-    <RelativeLayout
-        android:id="@+id/rlDemo"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:visibility="gone">
 
-        <ImageView
-            android:id="@+id/ivBackground"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content" />
-
-        <View
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_alignBottom="@+id/ivBackground"
-            android:layout_alignLeft="@+id/ivBackground"
-            android:layout_alignRight="@+id/ivBackground"
-            android:layout_alignTop="@+id/ivBackground"
-            android:background="#32000000" />
-
-        <ImageView
-            android:id="@+id/ivFevicon"
-            android:layout_width="18dp"
-            android:layout_height="18dp"
-            android:layout_alignBottom="@+id/ivBackground"
-            android:layout_marginBottom="5dp"
-            android:layout_marginLeft="5dp"
-            android:background="#00ffffff" />
-
-        <TextView
-            android:id="@+id/tvUrlTitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_alignBottom="@+id/ivFevicon"
-            android:layout_alignRight="@+id/ivBackground"
-            android:layout_alignTop="@+id/ivFevicon"
-            android:layout_marginLeft="5dp"
-            android:layout_toRightOf="@+id/ivFevicon"
-            android:gravity="center_vertical"
-            android:text="www.skype.com"
-            android:textColor="#ffffff"
-            android:textSize="9sp" />
-
-        <TextView
-
-            android:id="@+id/tvDescription"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_above="@+id/ivFevicon"
-            android:layout_alignLeft="@+id/ivFevicon"
-            android:layout_alignRight="@+id/ivBackground"
-            android:ellipsize="end"
-            android:singleLine="true"
-            android:text="Description"
-            android:textColor="#ddffffff"
-            android:textSize="11sp" />
-
-        <TextView
-            android:id="@+id/tvTitle"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_above="@+id/tvDescription"
-            android:layout_alignLeft="@+id/ivFevicon"
-            android:layout_alignRight="@+id/ivBackground"
-            android:ellipsize="none"
-            android:singleLine="true"
-            android:text="Skype |Free calls"
-            android:textColor="#ddffffff"
-            android:textSize="13sp"
-            android:textStyle="bold" />
-    </RelativeLayout>
+    <include layout="@layout/rv_layout" />
 
     <WebView
         android:id="@+id/testWV"

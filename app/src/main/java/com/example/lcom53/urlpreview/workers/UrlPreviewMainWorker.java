@@ -31,6 +31,7 @@ import java.net.MalformedURLException;
 import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -89,6 +90,13 @@ public class UrlPreviewMainWorker extends HandlerThread {
 
     private void handleRequest(final MessageObject imageView) {
         String urlToCheck = imageView.getDomainName();
+        domainName = urlToCheck;
+        try {
+            url = new URL(domainName.toLowerCase(Locale.US));
+        } catch (MalformedURLException e) {
+            e.printStackTrace();
+            url = null;
+        }
         Bitmap feviconBitmap = null;
         Bitmap backgroundBitmap = null;
         if (!TextUtils.isEmpty(urlToCheck)) {
@@ -97,7 +105,7 @@ public class UrlPreviewMainWorker extends HandlerThread {
                 try {
                     Connection.Response response =
                             Jsoup.connect(urlToCheck)
-                                    .userAgent("Mozilla/5.0 (Windows NT 6.1; WOW64; rv:40.0) Gecko/20100101 Firefox/40.1")
+                                    .userAgent("Mozilla/5.0 (Linux; U; Android 4.0.3; ko-kr; LG-L160L Build/IML74K) AppleWebkit/534.30 (KHTML, like Gecko) Version/4.0 Mobile Safari/534.30")
                                     .referrer("http://www.google.com")
                                     .timeout(10000)
                                     .followRedirects(true)
@@ -109,34 +117,36 @@ public class UrlPreviewMainWorker extends HandlerThread {
                     fevicon = "";
                     for (Element element : elements) {
                         String relValue = element.attr("rel");
-                        if (!TextUtils.isEmpty(relValue)) {
-                            if (relValue.equals("icon")) {
-                                mFevicon = element.attr("href");
-                            } else if (relValue.equals("shortcut icon")) {
-                                mFevicon = element.attr("href");
-                            }
-                            if (TextUtils.isEmpty(fevicon)) {
-                                fevicon = mFevicon;
-                            } else {
-                                if (!mFevicon.contains(".svg")) {
+                        if (relValue.equals("shortcut icon") || relValue.equals("icon")) {
+                            if (!TextUtils.isEmpty(relValue)) {
+                                if (relValue.equals("icon")) {
+                                    mFevicon = element.attr("href");
+                                } else if (relValue.equals("shortcut icon")) {
+                                    mFevicon = element.attr("href");
+                                }
+                                if (TextUtils.isEmpty(fevicon)) {
                                     fevicon = mFevicon;
+                                } else {
+                                    if (!mFevicon.contains(".svg")) {
+                                        fevicon = mFevicon;
+                                    }
                                 }
-                            }
-                            if (fevicon.startsWith("//")) {
-                                fevicon = "http:" + fevicon;
-                            } else if (fevicon.startsWith("/")) {
-                                fevicon = domainName + fevicon;
-                            }
-                            try {
-                                URL url1 = new URL(fevicon);
-                                Log.d(TAG, "Url is:" + url1.getAuthority() + ":" + url1.getAuthority() + ":" + url1.getPath());
-                            } catch (MalformedURLException e) {
-                                Log.d(TAG, " :" + e.getMessage());
-                                if (url != null) {
-                                    fevicon = url.getProtocol() + "://" + url.getAuthority() + (fevicon.startsWith("/") ? "" : "/") + fevicon;
+                                if (fevicon.startsWith("//")) {
+                                    fevicon = "http:" + fevicon;
+                                } else if (fevicon.startsWith("/")) {
+                                    fevicon = domainName + fevicon;
                                 }
+                                try {
+                                    URL url1 = new URL(fevicon);
+                                    Log.d(TAG, "Url is:" + url1.getAuthority() + ":" + url1.getAuthority() + ":" + url1.getPath());
+                                } catch (MalformedURLException e) {
+                                    Log.d(TAG, " :" + e.getMessage());
+                                    if (url != null) {
+                                        fevicon = url.getProtocol() + "://" + url.getAuthority() + (fevicon.startsWith("/") ? "" : "/") + fevicon;
+                                    }
+                                }
+                                Log.d(TAG, "Fevicon icon url is :" + fevicon);
                             }
-                            Log.d(TAG, "Fevicon icon url is :" + fevicon);
                         }
                     }
                     if (TextUtils.isEmpty(fevicon)) {
@@ -220,6 +230,8 @@ public class UrlPreviewMainWorker extends HandlerThread {
                 }
             }
             scaledBitmap = Bitmap.createScaledBitmap(backgroundBitmap, (int) modifyWidth, (int) modifyHeight, false);
+            imageView.setWidth((int) modifyWidth);
+            imageView.setHeight((int) modifyHeight);
         }
         mRequestMap.remove(imageView);
         final Bitmap finalFeviconBitmap = feviconBitmap;

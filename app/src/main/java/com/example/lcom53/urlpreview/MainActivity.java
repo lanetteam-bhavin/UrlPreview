@@ -179,7 +179,7 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
             intent.putExtra("Width", width);
             intent.putExtra("Height", 400);
             File file = getExternalFilesDir(null);
-            File imageSaveAs = new File(file, Uri.encode(messageObject2.getDomainSnap()) + ".png");
+            File imageSaveAs = new File(file, Uri.encode(messageObject2.getDomainName()+"_bg") + ".png");
             intent.putExtra("Path", "" + imageSaveAs.getPath());
             startService(intent);
         } else {
@@ -343,7 +343,7 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
         }
 
         if (!hasPrefix) {
-            url = prefixes[0] + url;
+            url = prefixes[0] + (url.startsWith("www")?"":"www.")+url;
         }
 
         return url;
@@ -419,7 +419,7 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
             rlDemo.layout(0, 0, messageObject.width, messageObject.height);
             Bitmap b = rlDemo.getDrawingCache();
             File file1 = getExternalFilesDir(null);
-            File file = new File(file1, Uri.encode(messageObject.getDomainName()));
+            File file = new File(file1, Uri.encode(messageObject.getDomainName())+".png");
             OutputStream out;
             try {
                 out = new BufferedOutputStream(new FileOutputStream(file));
@@ -433,7 +433,7 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
             bgLoaded = false;
             feviconLoaded = false;
             messageObjectArrayList.add(messageObject);
-            adapter.notifyDataSetChanged();
+            adapter.notifyItemInserted(messageObjectArrayList.size() - 1);
         }
     }
 
@@ -457,8 +457,7 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
         bgLoaded = false;
         feviconLoaded = false;
         messageObjectArrayList.add(messageObject1);
-        adapter.notifyDataSetChanged();
-
+        adapter.notifyItemInserted(messageObjectArrayList.size()-1);
     }
 
     public float dpToPx(int dp) {
@@ -601,34 +600,36 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
                         fevicon = "";
                         for (Element element : elements) {
                             String relValue = element.attr("rel");
-                            if (!TextUtils.isEmpty(relValue)) {
-                                if (relValue.equals("icon")) {
-                                    mFevicon = element.attr("href");
-                                } else if (relValue.equals("shortcut icon")) {
-                                    mFevicon = element.attr("href");
-                                }
-                                if (TextUtils.isEmpty(fevicon)) {
-                                    fevicon = mFevicon;
-                                } else {
-                                    if (!mFevicon.contains(".svg")) {
+                            if (relValue.equals("shortcut icon") || relValue.equals("icon")) {
+                                if (!TextUtils.isEmpty(relValue)) {
+                                    if (relValue.equals("icon")) {
+                                        mFevicon = element.attr("href");
+                                    } else if (relValue.equals("shortcut icon")) {
+                                        mFevicon = element.attr("href");
+                                    }
+                                    if (TextUtils.isEmpty(fevicon)) {
                                         fevicon = mFevicon;
+                                    } else {
+                                        if (!mFevicon.contains(".svg")) {
+                                            fevicon = mFevicon;
+                                        }
                                     }
-                                }
-                                if (fevicon.startsWith("//")) {
-                                    fevicon = "http:" + fevicon;
-                                } else if (fevicon.startsWith("/")) {
-                                    fevicon = domainName + fevicon;
-                                }
-                                try {
-                                    URL url1 = new URL(fevicon);
-                                    Log.d(TAG, "Url is:" + url1.getAuthority() + ":" + url1.getAuthority() + ":" + url1.getPath());
-                                } catch (MalformedURLException e) {
-                                    Log.d(TAG, " :" + e.getMessage());
-                                    if (url != null) {
-                                        fevicon = url.getProtocol() + "://" + url.getAuthority() + (fevicon.startsWith("/") ? "" : "/") + fevicon;
+                                    if (fevicon.startsWith("//")) {
+                                        fevicon = "http:" + fevicon;
+                                    } else if (fevicon.startsWith("/")) {
+                                        fevicon = domainName + fevicon;
                                     }
+                                    try {
+                                        URL url1 = new URL(fevicon);
+                                        Log.d(TAG, "Url is:" + url1.getAuthority() + ":" + url1.getAuthority() + ":" + url1.getPath());
+                                    } catch (MalformedURLException e) {
+                                        Log.d(TAG, " :" + e.getMessage());
+                                        if (url != null) {
+                                            fevicon = url.getProtocol() + "://" + url.getAuthority() + (fevicon.startsWith("/") ? "" : "/") + fevicon;
+                                        }
+                                    }
+                                    Log.d(TAG, "Fevicon icon url is :" + fevicon);
                                 }
-                                Log.d(TAG, "Fevicon icon url is :" + fevicon);
                             }
                         }
                         if (TextUtils.isEmpty(fevicon)) {

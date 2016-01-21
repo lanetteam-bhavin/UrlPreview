@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/rlDemo"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/rl_back"
+    android:visibility="gone">
+
+    <ImageView
+        android:id="@+id/ivBackground"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content" />
+
+    <View
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignBottom="@+id/ivBackground"
+        android:layout_alignLeft="@+id/ivBackground"
+        android:layout_alignRight="@+id/ivBackground"
+        android:layout_alignTop="@+id/ivBackground"
+        android:background="@drawable/iv_back" />
+
+    <LinearLayout
+        android:id="@+id/llBottom"
+        android:layout_width="match_parent"
+        android:layout_height="18dp"
+        android:layout_alignBottom="@+id/ivBackground"
+        android:layout_alignParentLeft="true"
+        android:layout_marginBottom="2dp"
+        android:layout_marginLeft="5dp"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:id="@+id/ivFevicon"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:background="#00ffffff" />
+
+        <TextView
+            android:id="@+id/tvUrlTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="5dp"
+            android:layout_marginRight="5dp"
+            android:gravity="center_vertical"
+            android:minHeight="18dp"
+            android:text="www.skype.com"
+            android:textColor="#ffffff"
+            android:textSize="9sp" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tvDescription"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignBottom="@+id/ivBackground"
+        android:layout_alignLeft="@+id/llBottom"
+        android:layout_alignRight="@+id/ivBackground"
+        android:layout_marginBottom="18dp"
+        android:ellipsize="end"
+        android:singleLine="true"
+        android:text="Description"
+        android:textColor="#ddffffff"
+        android:textSize="11sp" />
+
+    <TextView
+        android:id="@+id/tvTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_above="@+id/tvDescription"
+        android:layout_alignLeft="@+id/llBottom"
+        android:layout_alignRight="@+id/ivBackground"
+        android:ellipsize="none"
+        android:singleLine="true"
+        android:text="Skype |Free calls"
+        android:textColor="#ddffffff"
+        android:textSize="13sp"
+        android:textStyle="bold" />
+</RelativeLayout>
