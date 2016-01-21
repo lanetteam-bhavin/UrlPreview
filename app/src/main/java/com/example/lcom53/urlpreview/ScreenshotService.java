@@ -4,6 +4,7 @@ import android.app.Service;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.os.AsyncTask;
+import android.os.Binder;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
@@ -11,10 +12,15 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.Process;
 import android.support.v4.content.LocalBroadcastManager;
+import android.text.TextUtils;
 import android.util.Log;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
+
+import com.example.lcom53.urlpreview.workers.UrlPreviewMainWorker;
+import com.nostra13.universalimageloader.core.ImageLoader;
+import com.nostra13.universalimageloader.core.assist.ImageSize;
 
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -30,6 +36,8 @@ public class ScreenshotService extends Service {
     String domainName, PathToSave;
     int width = 0, height = 0;
     MessageObject messageObject;
+    private final IBinder binder = new LocalBinder();
+    private UrlPreviewMainWorker.Callback serviceCallbacks;
 
     // Handler that receives messages from the thread
     private final class ServiceHandler extends Handler {
@@ -51,7 +59,6 @@ public class ScreenshotService extends Service {
             webview.layout(0, 0, width, height);
             webview.loadUrl(domainName);
             webview.setWebViewClient(new WebViewClient() {
-
                 @Override
                 public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
                     //without this method, your app may crash...
@@ -67,6 +74,7 @@ public class ScreenshotService extends Service {
     }
 
     private class takeScreenshotTask extends AsyncTask<Void, Void, Void> {
+        Bitmap feviconBitmap = null, scaledBitmap = null;
 
         @Override
         protected Void doInBackground(Void[] p1) {
@@ -79,25 +87,60 @@ public class ScreenshotService extends Service {
                 }
             }
             //here I save the bitmap to file
-            Bitmap b = webview.getDrawingCache();
+            Bitmap backgroundBitmap = webview.getDrawingCache();
             File file = new File(PathToSave);
             OutputStream out;
             try {
                 out = new BufferedOutputStream(new FileOutputStream(file));
-                b.compress(Bitmap.CompressFormat.PNG, 100, out);
+                backgroundBitmap.compress(Bitmap.CompressFormat.PNG, 100, out);
                 out.close();
                 Log.d("ScreenshotService", "File save @:" + file.getAbsolutePath());
-                Intent intent = new Intent(MainActivity.ACTION_IMAGE_SAVED);
+                float originHeight = backgroundBitmap.getHeight();
+                float originWidh = backgroundBitmap.getWidth();
+                float modifyHeight = originHeight;
+                float modifyWidth = originWidh;
+                float ratio = originWidh / originHeight;
+                if (ratio == 1) {
+                    if (originHeight < MainActivity.imageMinHeight || originHeight > MainActivity.imageMinHeight) {
+                        modifyHeight = MainActivity.imageMinHeight;
+                        if (MainActivity.imageMinHeight < MainActivity.imageMaxWidth) {
+                            modifyWidth = MainActivity.imageMinHeight;
+                        }
+                    }
+                } else if (originHeight > MainActivity.imageMinHeight) {
+                    modifyHeight = MainActivity.imageMinHeight;
+                    modifyWidth = (MainActivity.imageMinHeight * originWidh) / originHeight;
+                    if (modifyWidth > MainActivity.imageMaxWidth) {
+                        modifyHeight = (MainActivity.imageMaxWidth * MainActivity.imageMinHeight) / modifyWidth;
+                    }
+                }
+                scaledBitmap = Bitmap.createScaledBitmap(backgroundBitmap, (int) modifyWidth, (int) modifyHeight, false);
+                messageObject.setWidth((int) modifyWidth);
+                messageObject.setHeight((int) modifyHeight);
                 messageObject.setDomainSnap(file.getAbsolutePath());
-                intent.putExtra("ImageSaved", messageObject);
-                LocalBroadcastManager.getInstance(ScreenshotService.this).sendBroadcast(intent);
+//                Intent intent = new Intent(MainActivity.ACTION_IMAGE_SAVED);
+//                intent.putExtra("ImageSaved", messageObject);
+//                LocalBroadcastManager.getInstance(ScreenshotService.this).sendBroadcast(intent);
             } catch (IOException e) {
                 Log.e("ScreenshotService", "IOException while trying to save thumbnail, Is /sdcard/ writable?");
 
                 e.printStackTrace();
             }
-            Log.d("ScreenshotService", "Screenshot taken");
+            if (!TextUtils.isEmpty(messageObject.getFevicon())) {
+                ImageSize imageSize = new ImageSize(30, 30);
+                feviconBitmap = ImageLoader.getInstance().loadImageSync(messageObject.getFevicon(), imageSize);
+            }
             return null;
+        }
+
+        @Override
+        protected void onPostExecute(Void aVoid) {
+            if (serviceCallbacks != null) {
+                serviceCallbacks.onImageDownloaded(messageObject, feviconBitmap, scaledBitmap);
+            } else {
+                Log.d("ScreenshotService", "Service call back is null");
+            }
+            Log.d("ScreenshotService", "Screenshot taken");
         }
     }
 
@@ -130,7 +173,7 @@ public class ScreenshotService extends Service {
     @Override
     public IBinder onBind(Intent intent) {
         // We don't provide binding, so return null
-        return null;
+        return binder;
     }
 
     @Override
@@ -138,5 +181,13 @@ public class ScreenshotService extends Service {
 
     }
 
+    public class LocalBinder extends Binder {
+        ScreenshotService getService() {
+            return ScreenshotService.this;
+        }
+    }
 
+    public void setCallbacks(UrlPreviewMainWorker.Callback callbacks) {
+        serviceCallbacks = callbacks;
+    }
 }

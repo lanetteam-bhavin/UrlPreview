@@ -1,6 +1,10 @@
 package com.example.lcom53.urlpreview;
 
+import android.util.Log;
+
 import java.io.Serializable;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author ParthS
@@ -11,7 +15,45 @@ public class MessageObject implements Serializable {
     String fevicon;
     String TitleDescription;
     String subTitleDescription;
-    int height, width;
+    int height;
+    int width;
+
+    public String getOriginalMsg() {
+        return originalMsg;
+    }
+
+    public void setOriginalMsg(String originalMsg) {
+        this.originalMsg = originalMsg;
+    }
+
+    String originalMsg;
+
+    public int getPosition() {
+        return position;
+    }
+
+    public void setPosition(int position) {
+        this.position = position;
+    }
+
+    int position;
+
+    public Integer getmSequence() {
+        return mSequence;
+    }
+
+    public void setmSequence(Integer mSequence) {
+        this.mSequence = mSequence;
+        respId = UUID.randomUUID().toString();
+    }
+
+    private Integer mSequence;
+    private final AtomicInteger sequenceNumber = new AtomicInteger(0);
+
+    MessageObject() {
+        mSequence = sequenceNumber.getAndDecrement();
+        Log.d("Messageobject", "Sequence no :" + mSequence);
+    }
 
     public String getRespId() {
         return respId;
@@ -81,4 +123,14 @@ public class MessageObject implements Serializable {
 
     String domainSnap;
 
+    public Priority getPriority() {
+        return Priority.NORMAL;
+    }
+
+    public enum Priority {
+        LOW,
+        NORMAL,
+        HIGH,
+        IMMEDIATE
+    }
 }

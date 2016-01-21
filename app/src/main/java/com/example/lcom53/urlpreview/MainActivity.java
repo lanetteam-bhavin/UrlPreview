@@ -1,9 +1,11 @@
 package com.example.lcom53.urlpreview;
 
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.ServiceConnection;
 import android.content.res.Resources;
 import android.database.Cursor;
 import android.graphics.Bitmap;
@@ -19,6 +21,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
+import android.os.IBinder;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
 import android.support.v4.content.LocalBroadcastManager;
@@ -72,21 +75,25 @@ import java.net.MalformedURLException;
 import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Random;
+import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.UUID;
+import java.util.WeakHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class MainActivity extends AppCompatActivity implements UrlPreviewMainWorker.Callback {
+public class MainActivity extends AppCompatActivity implements UrlPreviewMainWorker.Callback, DownloadSnaps {
 
     EditText etUrl;
     TextView tvSend;
-    private String TAG = MainActivity.class.getSimpleName();
+    String TAG = MainActivity.class.getSimpleName();
     ImageView ivBackground, ivFevicon;
     TextView tvUrlTitle, tvDescription;
-    private TextView tvTitle;
+    TextView tvTitle;
     RelativeLayout rlDemo;
     Point size;
     int width = 0, height = 0;
@@ -106,6 +113,18 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
     public static final int RIGHT_SIDE = 1;
     private UrlPreviewMainWorker mWorkerThread;
     Random random;
+    ArrayList<MessageObject> queueForSnapShot = new ArrayList<>();
+
+    @Override
+    public void onRequestDownload(int positionForDownload, String URL,String originMsg) {
+        MessageObject messageObject = new MessageObject();
+        messageObject.setOriginalMsg(originMsg);
+        messageObject.setDomainName(URL);
+        messageObject.setWidth(width);
+        messageObject.setHeight(400);
+        messageObject.setPosition(positionForDownload);
+        mWorkerThread.queueTask(URL, random.nextInt(2), messageObject);
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -134,20 +153,36 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
         tvSend.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                ArrayList<LinkSpec> links = new ArrayList<LinkSpec>();
-                links = gatherLinks(etUrl.getText().toString());
-                if (links.size() > 0) {
-                    String urlToCheck = "LoadUrl_" + etUrl.getText().toString();
-                    for (int i = 0; i < links.size(); i++) {
-                        MessageObject messageObject = new MessageObject();
-                        messageObject.setDomainName(links.get(i).url);
-                        messageObject.setWidth(width);
-                        messageObject.setHeight(400);
-                        mWorkerThread.queueTask(links.get(i).url, random.nextInt(2), messageObject);
-                    }
-//                    new Urlparser(urlToCheck).execute(links.get(0).url);
+                if(!TextUtils.isEmpty(etUrl.getText().toString())){
+                    MessageObject messageObject = new MessageObject();
+                    messageObject.setOriginalMsg(etUrl.getText().toString());
+                    messageObjectArrayList.add(messageObject);
+                    adapter.notifyItemInserted(messageObjectArrayList.size() - 1);
+                    etUrl.setText("");
                 }
-
+//                ArrayList<LinkSpec> links = new ArrayList<LinkSpec>();
+//                links = gatherLinks(etUrl.getText().toString());
+//                if (links.size() > 0) {
+//                    String urlToCheck = "LoadUrl_" + etUrl.getText().toString();
+//                    if (links.size() > 1) {
+//                        String uuid = UUID.randomUUID().toString();
+//                        for (int i = 0; i < links.size(); i++) {
+//                            MessageObject messageObject = new MessageObject();
+//                            messageObject.setDomainName(links.get(i).url);
+//                            messageObject.setWidth(width);
+//                            messageObject.setHeight(400);
+//                            messageObject.respId = uuid;
+//                            mWorkerThread.queueTask(links.get(i).url, random.nextInt(2), messageObject);
+//                        }
+////                    new Urlparser(urlToCheck).execute(links.get(0).url);
+//                    } else {
+//                        MessageObject messageObject = new MessageObject();
+//                        messageObject.setDomainName(links.get(0).url);
+//                        messageObject.setWidth(width);
+//                        messageObject.setHeight(400);
+//                        mWorkerThread.queueTask(links.get(0).url, random.nextInt(2), messageObject);
+//                    }
+//                }
             }
         });
         rlDemo = (RelativeLayout) findViewById(R.id.rlDemo);
@@ -161,6 +196,7 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
         linearLayoutManager.setOrientation(LinearLayoutManager.VERTICAL);
         messageObjectArrayList = new ArrayList<>();
         adapter = new MyRVAdapter(this, messageObjectArrayList);
+        adapter.setDownloadSnaps(this);
         rvlist.setAdapter(adapter);
         rvlist.setLayoutManager(linearLayoutManager);
         configureUIL();
@@ -170,18 +206,49 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
     }
 
     @Override
+    protected void onStop() {
+        super.onStop();
+        if (bound) {
+            if (screenshotService != null) {
+                screenshotService.setCallbacks(null); // unregister
+                unbindService(serviceConnection);
+                bound = false;
+            }
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (mWorkerThread != null) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
+                mWorkerThread.quitSafely();
+            } else {
+                mWorkerThread.quit();
+            }
+        }
+        super.onDestroy();
+    }
+
+    @Override
     public void onImageDownloaded(MessageObject messageObject2, Bitmap bitmapFevicon, Bitmap bitmapBackground) {
         if (TextUtils.isEmpty(messageObject2.getDomainSnap())) {
 //                webView.loadUrl(domainName);
-            Intent intent = new Intent(MainActivity.this, ScreenshotService.class);
-            intent.putExtra("messageObject", messageObject2);
-            intent.putExtra("URL", messageObject2.domainName);
-            intent.putExtra("Width", width);
-            intent.putExtra("Height", 400);
-            File file = getExternalFilesDir(null);
-            File imageSaveAs = new File(file, Uri.encode(messageObject2.getDomainName()+"_bg") + ".png");
-            intent.putExtra("Path", "" + imageSaveAs.getPath());
-            startService(intent);
+            if (queueForSnapShot.size() > 0) {
+                Log.d(TAG, "Wait for queue Mr. " + messageObject2.getDomainName() + ":" + messageObject2.getmSequence());
+                queueForSnapShot.add(messageObject2);
+            } else {
+                Log.d(TAG, "No traffic ahead and you are ready to go Mr. " + messageObject2.getDomainName() + ":" + messageObject2.getmSequence());
+                Intent intent = new Intent(MainActivity.this, ScreenshotService.class);
+                intent.putExtra("messageObject", messageObject2);
+                intent.putExtra("URL", messageObject2.domainName);
+                intent.putExtra("Width", width);
+                intent.putExtra("Height", 400);
+                File file = getExternalFilesDir(null);
+                File imageSaveAs = new File(file, Uri.encode(messageObject2.getDomainName() + "_bg") + ".png");
+                intent.putExtra("Path", "" + imageSaveAs.getPath());
+                startService(intent);
+                bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
+            }
         } else {
             if (bitmapFevicon != null) {
                 ivFevicon.setImageBitmap(bitmapFevicon);
@@ -194,14 +261,51 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
             tvDescription.setText(messageObject2.getSubTitleDescription());
             tvUrlTitle.setText(messageObject2.getDomainName());
             getRVSnapNoCheck(messageObject2);
+            if (queueForSnapShot.contains(messageObject2.getmSequence())) {
+                queueForSnapShot.remove(messageObject2.getmSequence());
+            }
+            if (queueForSnapShot.size() > 0) {
+                Log.d(TAG, "We have queue for Snaps. Let's take snap");
+                MessageObject mSnapObject = queueForSnapShot.get(0);
+                Intent intent = new Intent(MainActivity.this, ScreenshotService.class);
+                intent.putExtra("messageObject", mSnapObject);
+                intent.putExtra("URL", mSnapObject.domainName);
+                intent.putExtra("Width", width);
+                intent.putExtra("Height", 400);
+                File file = getExternalFilesDir(null);
+                File imageSaveAs = new File(file, Uri.encode(mSnapObject.getDomainName() + "_bg") + ".png");
+                intent.putExtra("Path", "" + imageSaveAs.getPath());
+                startService(intent);
+                bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
+            } else {
+                Log.d(TAG, "No more work. No one in queue found");
+            }
         }
     }
+
+    ScreenshotService screenshotService;
+    boolean bound = false;
+    private ServiceConnection serviceConnection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            ScreenshotService.LocalBinder binder = (ScreenshotService.LocalBinder) service;
+            screenshotService = binder.getService();
+            bound = true;
+            screenshotService.setCallbacks(MainActivity.this);
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            bound = false;
+        }
+    };
 
     public class MyRVAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         LayoutInflater layoutInflater;
         ArrayList<MessageObject> mCurrentuser;
         String msgToDisplay;
         Context context;
+        private DownloadSnaps downloadSnaps;
 
         public MyRVAdapter(Context context, ArrayList<MessageObject> currentUser) {
             layoutInflater = LayoutInflater.from(context);
@@ -219,11 +323,12 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
         public void onBindViewHolder(RecyclerView.ViewHolder vh, int position) {
             ChatViewHolder viewHolder = (ChatViewHolder) vh;
             MessageObject chatItem = mCurrentuser.get(position);
-            msgToDisplay = chatItem.getDomainName().trim();
+            msgToDisplay = chatItem.getOriginalMsg().trim();
             Log.d(TAG, "message to display" + msgToDisplay);
             if (msgToDisplay.startsWith("LoadUrl_")) {
                 msgToDisplay = msgToDisplay.replace("LoadUrl_", "").trim();
             }
+            viewHolder.tvUrlTitle.setText(msgToDisplay);
             ArrayList<LinkSpec> linkSpecs = gatherLinks(msgToDisplay);
             if (linkSpecs.size() > 0) {
                 viewHolder.llimagecontainer.removeAllViews();
@@ -237,7 +342,10 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
                         Log.d(TAG, "File exists :" + file.getAbsolutePath());
                     } else {
                         viewHolder.llimagecontainer.setVisibility(View.GONE);
-                        Log.d(TAG, "File not exists :" + file.getAbsolutePath());
+                        Log.d(TAG, "File not exists so lets request for download:" + file.getAbsolutePath());
+                        if (downloadSnaps != null) {
+                            downloadSnaps.onRequestDownload(position, linkSpecs.get(i).url,msgToDisplay);
+                        }
                     }
                 }
             }
@@ -256,13 +364,19 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
             return mCurrentuser.size();
         }
 
+        public void setDownloadSnaps(DownloadSnaps downloadSnaps) {
+            this.downloadSnaps = downloadSnaps;
+        }
+
         public class ChatViewHolder extends RecyclerView.ViewHolder {
             LinearLayout llimagecontainer;
+            TextView tvUrlTitle;
 
             ChatViewHolder(View itemView) {
                 super(itemView);
                 llimagecontainer = (LinearLayout) itemView.findViewById(R.id.llimagecontainer);
                 llimagecontainer.setVisibility(View.GONE);
+                tvUrlTitle = (TextView) itemView.findViewById(R.id.tvUrlTitle);
             }
         }
     }
@@ -343,7 +457,7 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
         }
 
         if (!hasPrefix) {
-            url = prefixes[0] + (url.startsWith("www")?"":"www.")+url;
+            url = prefixes[0] + (url.startsWith("www") ? "" : "www.") + url;
         }
 
         return url;
@@ -419,7 +533,7 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
             rlDemo.layout(0, 0, messageObject.width, messageObject.height);
             Bitmap b = rlDemo.getDrawingCache();
             File file1 = getExternalFilesDir(null);
-            File file = new File(file1, Uri.encode(messageObject.getDomainName())+".png");
+            File file = new File(file1, Uri.encode(messageObject.getDomainName()) + ".png");
             OutputStream out;
             try {
                 out = new BufferedOutputStream(new FileOutputStream(file));
@@ -432,8 +546,9 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
             }
             bgLoaded = false;
             feviconLoaded = false;
-            messageObjectArrayList.add(messageObject);
-            adapter.notifyItemInserted(messageObjectArrayList.size() - 1);
+            messageObjectArrayList.remove(messageObject.getPosition());
+            messageObjectArrayList.add(messageObject.getPosition(), messageObject);
+            adapter.notifyItemChanged(messageObject.getPosition());
         }
     }
 
@@ -456,8 +571,10 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
         }
         bgLoaded = false;
         feviconLoaded = false;
-        messageObjectArrayList.add(messageObject1);
-        adapter.notifyItemInserted(messageObjectArrayList.size()-1);
+
+        messageObjectArrayList.remove(messageObject1.getPosition());
+        messageObjectArrayList.add(messageObject1.getPosition(), messageObject1);
+        adapter.notifyItemChanged(messageObject1.getPosition());
     }
 
     public float dpToPx(int dp) {
@@ -563,7 +680,7 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
                 File file = getExternalFilesDir(null);
                 File imageSaveAs = new File(file, Uri.encode(domainName) + ".png");
                 intent.putExtra("Path", "" + imageSaveAs.getPath());
-                startService(intent);
+                bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
             } else {
                 if (!TextUtils.isEmpty(fevicon)) {
                     ivFevicon.setTag(feviconTarget);

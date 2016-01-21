@@ -1,22 +1,17 @@
 package com.example.lcom53.urlpreview.workers;
 
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Message;
-import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.Log;
 import android.util.Patterns;
-import android.widget.ImageView;
 
-import com.example.lcom53.urlpreview.GlobalApp;
 import com.example.lcom53.urlpreview.MainActivity;
 import com.example.lcom53.urlpreview.MessageObject;
 import com.nostra13.universalimageloader.core.ImageLoader;
 import com.nostra13.universalimageloader.core.assist.ImageSize;
-import com.squareup.picasso.Picasso;
 
 import org.jsoup.Connection;
 import org.jsoup.Jsoup;
@@ -25,27 +20,22 @@ import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.SocketTimeoutException;
 import java.net.URL;
-import java.util.HashMap;
 import java.util.Locale;
-import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.concurrent.TimeUnit;
 
 /**
- * @author ParthS
- * @since 20/1/16.
+ * Created by lcom17 on 21/1/16.
  */
-public class UrlPreviewMainWorker extends HandlerThread {
+public class UrlScreenShotWorker extends HandlerThread {
 
     private Handler mWorkerHandler;
     private Handler mResponseHandler;
     private WeakHashMap<MessageObject, String> mRequestMap = new WeakHashMap<MessageObject, String>();
-    private Callback mCallback;
+    private UrlPreviewMainWorker.Callback mCallback;
     private static final String TAG = UrlPreviewMainWorker.class.getSimpleName();
     String title = "";
     String subTitle = "";
@@ -55,11 +45,7 @@ public class UrlPreviewMainWorker extends HandlerThread {
     URL url;
     String mFevicon = "";
 
-    public interface Callback {
-        public void onImageDownloaded(MessageObject imageView, Bitmap bitmap, Bitmap side);
-    }
-
-    public UrlPreviewMainWorker(String TAG, Handler responseHandler, Callback callback) {
+    public UrlScreenShotWorker(String TAG, Handler responseHandler, UrlPreviewMainWorker.Callback callback) {
         super(TAG);
         mResponseHandler = responseHandler;
         mCallback = callback;
@@ -205,44 +191,34 @@ public class UrlPreviewMainWorker extends HandlerThread {
         imageView.setDomainSnap(image);
         if (!TextUtils.isEmpty(fevicon)) {
             ImageSize imageSize = new ImageSize(30, 30);
-            try {
-                feviconBitmap = ImageLoader.getInstance().loadImageSync(fevicon, imageSize);
-            } catch (Exception e) {
-                Log.d(TAG, "Time Out exception" + e.getMessage());
-            }
+            feviconBitmap = ImageLoader.getInstance().loadImageSync(fevicon, imageSize);
         }
         Bitmap scaledBitmap = null;
         if (!TextUtils.isEmpty(image)) {
             ImageSize imageSize = new ImageSize(imageView.getWidth(), imageView.getHeight());
-            try {
-                backgroundBitmap = ImageLoader.getInstance().loadImageSync(image, imageSize);
-            } catch (Exception e) {
-                Log.d(TAG, "Time Out exception" + e.getMessage());
-            }
-            if (backgroundBitmap != null) {
-                float originHeight = backgroundBitmap.getHeight();
-                float originWidh = backgroundBitmap.getWidth();
-                float modifyHeight = originHeight;
-                float modifyWidth = originWidh;
-                float ratio = originWidh / originHeight;
-                if (ratio == 1) {
-                    if (originHeight < MainActivity.imageMinHeight || originHeight > MainActivity.imageMinHeight) {
-                        modifyHeight = MainActivity.imageMinHeight;
-                        if (MainActivity.imageMinHeight < MainActivity.imageMaxWidth) {
-                            modifyWidth = MainActivity.imageMinHeight;
-                        }
-                    }
-                } else if (originHeight > MainActivity.imageMinHeight) {
+            backgroundBitmap = ImageLoader.getInstance().loadImageSync(image, imageSize);
+            float originHeight = backgroundBitmap.getHeight();
+            float originWidh = backgroundBitmap.getWidth();
+            float modifyHeight = originHeight;
+            float modifyWidth = originWidh;
+            float ratio = originWidh / originHeight;
+            if (ratio == 1) {
+                if (originHeight < MainActivity.imageMinHeight || originHeight > MainActivity.imageMinHeight) {
                     modifyHeight = MainActivity.imageMinHeight;
-                    modifyWidth = (MainActivity.imageMinHeight * originWidh) / originHeight;
-                    if (modifyWidth > MainActivity.imageMaxWidth) {
-                        modifyHeight = (MainActivity.imageMaxWidth * MainActivity.imageMinHeight) / modifyWidth;
+                    if (MainActivity.imageMinHeight < MainActivity.imageMaxWidth) {
+                        modifyWidth = MainActivity.imageMinHeight;
                     }
                 }
-                scaledBitmap = Bitmap.createScaledBitmap(backgroundBitmap, (int) modifyWidth, (int) modifyHeight, false);
-                imageView.setWidth((int) modifyWidth);
-                imageView.setHeight((int) modifyHeight);
+            } else if (originHeight > MainActivity.imageMinHeight) {
+                modifyHeight = MainActivity.imageMinHeight;
+                modifyWidth = (MainActivity.imageMinHeight * originWidh) / originHeight;
+                if (modifyWidth > MainActivity.imageMaxWidth) {
+                    modifyHeight = (MainActivity.imageMaxWidth * MainActivity.imageMinHeight) / modifyWidth;
+                }
             }
+            scaledBitmap = Bitmap.createScaledBitmap(backgroundBitmap, (int) modifyWidth, (int) modifyHeight, false);
+            imageView.setWidth((int) modifyWidth);
+            imageView.setHeight((int) modifyHeight);
         }
         mRequestMap.remove(imageView);
         final Bitmap finalFeviconBitmap = feviconBitmap;
