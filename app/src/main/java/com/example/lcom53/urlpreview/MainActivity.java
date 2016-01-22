@@ -116,13 +116,14 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
     ArrayList<MessageObject> queueForSnapShot = new ArrayList<>();
 
     @Override
-    public void onRequestDownload(int positionForDownload, String URL,String originMsg) {
+    public void onRequestDownload(int positionForDownload, String URL, String originMsg) {
         MessageObject messageObject = new MessageObject();
         messageObject.setOriginalMsg(originMsg);
         messageObject.setDomainName(URL);
         messageObject.setWidth(width);
         messageObject.setHeight(400);
         messageObject.setPosition(positionForDownload);
+        Log.d(TAG, "We are sending request :" + messageObject.toString());
         mWorkerThread.queueTask(URL, random.nextInt(2), messageObject);
     }
 
@@ -153,36 +154,13 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
         tvSend.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if(!TextUtils.isEmpty(etUrl.getText().toString())){
+                if (!TextUtils.isEmpty(etUrl.getText().toString())) {
                     MessageObject messageObject = new MessageObject();
                     messageObject.setOriginalMsg(etUrl.getText().toString());
                     messageObjectArrayList.add(messageObject);
                     adapter.notifyItemInserted(messageObjectArrayList.size() - 1);
                     etUrl.setText("");
                 }
-//                ArrayList<LinkSpec> links = new ArrayList<LinkSpec>();
-//                links = gatherLinks(etUrl.getText().toString());
-//                if (links.size() > 0) {
-//                    String urlToCheck = "LoadUrl_" + etUrl.getText().toString();
-//                    if (links.size() > 1) {
-//                        String uuid = UUID.randomUUID().toString();
-//                        for (int i = 0; i < links.size(); i++) {
-//                            MessageObject messageObject = new MessageObject();
-//                            messageObject.setDomainName(links.get(i).url);
-//                            messageObject.setWidth(width);
-//                            messageObject.setHeight(400);
-//                            messageObject.respId = uuid;
-//                            mWorkerThread.queueTask(links.get(i).url, random.nextInt(2), messageObject);
-//                        }
-////                    new Urlparser(urlToCheck).execute(links.get(0).url);
-//                    } else {
-//                        MessageObject messageObject = new MessageObject();
-//                        messageObject.setDomainName(links.get(0).url);
-//                        messageObject.setWidth(width);
-//                        messageObject.setHeight(400);
-//                        mWorkerThread.queueTask(links.get(0).url, random.nextInt(2), messageObject);
-//                    }
-//                }
             }
         });
         rlDemo = (RelativeLayout) findViewById(R.id.rlDemo);
@@ -197,6 +175,25 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
         messageObjectArrayList = new ArrayList<>();
         adapter = new MyRVAdapter(this, messageObjectArrayList);
         adapter.setDownloadSnaps(this);
+        adapter.registerAdapterDataObserver(new RecyclerView.AdapterDataObserver() {
+            @Override
+            public void onChanged() {
+                Log.d(TAG, "Adapter changed");
+                super.onChanged();
+            }
+
+            @Override
+            public void onItemRangeChanged(int positionStart, int itemCount, Object payload) {
+                Log.d(TAG, "Item changed :" + positionStart + ":itemcount:" + itemCount);
+                super.onItemRangeChanged(positionStart, itemCount, payload);
+            }
+
+            @Override
+            public void onItemRangeInserted(int positionStart, int itemCount) {
+                Log.d(TAG, "Item inserted :" + positionStart + ":" + itemCount);
+                super.onItemRangeInserted(positionStart, itemCount);
+            }
+        });
         rvlist.setAdapter(adapter);
         rvlist.setLayoutManager(linearLayoutManager);
         configureUIL();
@@ -246,17 +243,23 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
                 File file = getExternalFilesDir(null);
                 File imageSaveAs = new File(file, Uri.encode(messageObject2.getDomainName() + "_bg") + ".png");
                 intent.putExtra("Path", "" + imageSaveAs.getPath());
+                Log.d(TAG, "In Image Download going for snap shot service:" + messageObject2.toString());
                 startService(intent);
                 bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
             }
         } else {
+            Log.d(TAG, "In Image Download going for rvsnap:" + messageObject2.toString());
             if (bitmapFevicon != null) {
                 ivFevicon.setImageBitmap(bitmapFevicon);
                 ivFevicon.setVisibility(View.VISIBLE);
             } else {
                 ivFevicon.setVisibility(View.INVISIBLE);
+                ivFevicon.setImageDrawable(null);
             }
-            ivBackground.setImageBitmap(bitmapBackground);
+            if (bitmapBackground != null)
+                ivBackground.setImageBitmap(bitmapBackground);
+            else
+                ivBackground.setImageBitmap(null);
             tvTitle.setText(messageObject2.getTitleDescription());
             tvDescription.setText(messageObject2.getSubTitleDescription());
             tvUrlTitle.setText(messageObject2.getDomainName());
@@ -344,7 +347,7 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
                         viewHolder.llimagecontainer.setVisibility(View.GONE);
                         Log.d(TAG, "File not exists so lets request for download:" + file.getAbsolutePath());
                         if (downloadSnaps != null) {
-                            downloadSnaps.onRequestDownload(position, linkSpecs.get(i).url,msgToDisplay);
+                            downloadSnaps.onRequestDownload(position, linkSpecs.get(i).url, msgToDisplay);
                         }
                     }
                 }
@@ -571,7 +574,7 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
         }
         bgLoaded = false;
         feviconLoaded = false;
-
+        Log.d(TAG, "Snapshot created for No RVSnap Check:" + messageObject1.toString());
         messageObjectArrayList.remove(messageObject1.getPosition());
         messageObjectArrayList.add(messageObject1.getPosition(), messageObject1);
         adapter.notifyItemChanged(messageObject1.getPosition());
@@ -619,187 +622,6 @@ public class MainActivity extends AppCompatActivity implements UrlPreviewMainWor
             tvUrlTitle.setText(messageObject.getDomainName());
         }
     };
-
-    public class Urlparser extends AsyncTask<String, Void, String> {
-
-        String title = "";
-        String subTitle = "";
-        String fevicon = "";
-        String domainName = "";
-        String image = "";
-        URL url;
-        String mFevicon = "";
-
-        public Urlparser(String domainName) {
-            messageObject = new MessageObject();
-            messageObject.setDomainName(domainName);
-        }
-
-        @Override
-        protected void onPreExecute() {
-            super.onPreExecute();
-
-        }
-
-        @Override
-        protected String doInBackground(String... params) {
-            domainName = params[0];
-            messageObject.setDomainName(domainName);
-            Log.d(TAG, "Url is valid as per Utility : " + URLUtil.isValidUrl(domainName));
-            if (!URLUtil.isValidUrl(domainName)) {
-                if (!domainName.startsWith("www")) {
-                    domainName = "www." + domainName;
-                }
-                if (!domainName.startsWith("http")) {
-                    domainName = "http://" + domainName;
-                }
-            }
-            try {
-                url = new URL(domainName.toLowerCase(Locale.US));
-            } catch (MalformedURLException e) {
-                e.printStackTrace();
-                url = null;
-            }
-
-            parseUrl(domainName);
-            return null;
-        }
-
-        @Override
-        protected void onPostExecute(String s) {
-            messageObject.setFevicon(fevicon);
-            messageObject.setTitleDescription(title);
-            messageObject.setSubTitleDescription(subTitle);
-            if (TextUtils.isEmpty(image)) {
-//                webView.loadUrl(domainName);
-                Intent intent = new Intent(MainActivity.this, ScreenshotService.class);
-                intent.putExtra("messageObject", messageObject);
-                intent.putExtra("URL", domainName);
-                intent.putExtra("Width", width);
-                intent.putExtra("Height", 400);
-                File file = getExternalFilesDir(null);
-                File imageSaveAs = new File(file, Uri.encode(domainName) + ".png");
-                intent.putExtra("Path", "" + imageSaveAs.getPath());
-                bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
-            } else {
-                if (!TextUtils.isEmpty(fevicon)) {
-                    ivFevicon.setTag(feviconTarget);
-                    Picasso.with(MainActivity.this)
-                            .load(fevicon)
-                            .into(feviconTarget);
-                }
-                ivBackground.setTag(target1);
-                Picasso.with(MainActivity.this)
-                        .load(image)
-                        .into(target1);
-                tvTitle.setText(title);
-                tvDescription.setText(subTitle);
-                tvUrlTitle.setText(domainName);
-            }
-        }
-
-        public void parseUrl(String urlToCheck) {
-            if (!TextUtils.isEmpty(urlToCheck)) {
-                if (Patterns.WEB_URL.matcher(urlToCheck).matches()) {
-                    Log.d(TAG, "Look like a web link");
-                    try {
-                        Connection.Response response =
-                                Jsoup.connect(urlToCheck)
-                                        .userAgent("Mozilla/5.0 (Windows NT 6.1; WOW64; rv:40.0) Gecko/20100101 Firefox/40.1")
-                                        .referrer("http://www.google.com")
-                                        .timeout(10000)
-                                        .followRedirects(true)
-                                        .execute();
-                        Document document = response.parse();
-                        title = document.title();
-                        Log.d(TAG, "Title of page is:" + title);
-                        Elements elements = document.select("link");
-                        fevicon = "";
-                        for (Element element : elements) {
-                            String relValue = element.attr("rel");
-                            if (relValue.equals("shortcut icon") || relValue.equals("icon")) {
-                                if (!TextUtils.isEmpty(relValue)) {
-                                    if (relValue.equals("icon")) {
-                                        mFevicon = element.attr("href");
-                                    } else if (relValue.equals("shortcut icon")) {
-                                        mFevicon = element.attr("href");
-                                    }
-                                    if (TextUtils.isEmpty(fevicon)) {
-                                        fevicon = mFevicon;
-                                    } else {
-                                        if (!mFevicon.contains(".svg")) {
-                                            fevicon = mFevicon;
-                                        }
-                                    }
-                                    if (fevicon.startsWith("//")) {
-                                        fevicon = "http:" + fevicon;
-                                    } else if (fevicon.startsWith("/")) {
-                                        fevicon = domainName + fevicon;
-                                    }
-                                    try {
-                                        URL url1 = new URL(fevicon);
-                                        Log.d(TAG, "Url is:" + url1.getAuthority() + ":" + url1.getAuthority() + ":" + url1.getPath());
-                                    } catch (MalformedURLException e) {
-                                        Log.d(TAG, " :" + e.getMessage());
-                                        if (url != null) {
-                                            fevicon = url.getProtocol() + "://" + url.getAuthority() + (fevicon.startsWith("/") ? "" : "/") + fevicon;
-                                        }
-                                    }
-                                    Log.d(TAG, "Fevicon icon url is :" + fevicon);
-                                }
-                            }
-                        }
-                        if (TextUtils.isEmpty(fevicon)) {
-                            if (url != null) {
-                                fevicon = url.getProtocol() + "://" + url.getAuthority() + "/favicon.ico";
-                            }
-                            Log.d(TAG, "no fevicon found and we are getting from :" + fevicon);
-                        }
-                        Elements elements1 = document.select("meta");
-                        if (elements1.size() > 0) {
-                            for (Element elements2 : elements1) {
-                                String property = elements2.attr("property");
-                                String name = elements2.attr("name");
-                                if (!TextUtils.isEmpty(property)) {
-                                    if (property.equals("og:image")) {
-                                        image = elements2.attr("content");
-                                        Log.d(TAG, "og:image:" + image);
-                                    } else if (property.equals("og:type")) {
-                                        String strType = elements2.attr("content");
-                                        Log.d(TAG, "og:type:" + strType);
-                                    } else if (property.equals("og:title")) {
-                                        if (!TextUtils.isEmpty(elements2.attr("content"))) {
-                                            title = elements2.attr("content");
-                                            Log.d(TAG, "og:title:" + title);
-                                        }
-                                    }
-                                }
-                                if (!TextUtils.isEmpty(name)) {
-                                    if (name.equals("Description") || name.equals("description")) {
-                                        subTitle = elements2.attr("content");
-                                        Log.d(TAG, "Description is :" + subTitle);
-                                    }
-                                }
-                            }
-                        } else {
-                            image = "";
-                            subTitle = "";
-                        }
-                    } catch (SocketTimeoutException e) {
-                        Log.d(TAG, "Socket Time out : url is not exist");
-                        e.printStackTrace();
-                    } catch (MalformedURLException e) {
-                        Log.d(TAG, "Malformed url");
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    } catch (IllegalArgumentException e) {
-                        Log.d(TAG, "illegal url :");
-                        e.printStackTrace();
-                    }
-                }
-            }
-        }
-    }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {

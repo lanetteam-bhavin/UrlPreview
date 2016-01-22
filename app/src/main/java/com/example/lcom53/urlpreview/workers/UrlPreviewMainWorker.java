@@ -66,10 +66,14 @@ public class UrlPreviewMainWorker extends HandlerThread {
     }
 
     public void queueTask(String url, int side, MessageObject imageView) {
-        mRequestMap.put(imageView, url);
-        Log.i(TAG, url + " added to the queue");
-        mWorkerHandler.obtainMessage(side, imageView)
-                .sendToTarget();
+        if (!mRequestMap.containsKey(url)) {
+            mRequestMap.put(imageView, url);
+            Log.i(TAG, url + " added to the queue");
+            mWorkerHandler.obtainMessage(side, imageView)
+                    .sendToTarget();
+        } else {
+            Log.d(TAG, "Hay don't send me duplicate request. Like this:" + url);
+        }
     }
 
     public void prepareHandler() {
@@ -82,14 +86,24 @@ public class UrlPreviewMainWorker extends HandlerThread {
                     e.printStackTrace();
                 }
                 MessageObject imageView = (MessageObject) msg.obj;
-                Log.i(TAG, String.format("Processing %s", mRequestMap.get(imageView)));
+                Log.i(TAG, String.format("Processing %s", mRequestMap.get(imageView)) + ":Message:" + imageView.toString());
                 handleRequest(imageView);
+                try {
+                    msg.recycle();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
                 return true;
             }
         });
     }
 
     private void handleRequest(final MessageObject imageView) {
+        title = "";
+        subTitle = "";
+        fevicon = "";
+        domainName = "";
+        image = "";
         String urlToCheck = imageView.getDomainName();
         domainName = urlToCheck;
         try {
@@ -164,6 +178,20 @@ public class UrlPreviewMainWorker extends HandlerThread {
                             if (!TextUtils.isEmpty(property)) {
                                 if (property.equals("og:image")) {
                                     image = elements2.attr("content");
+                                    if (image.startsWith("//")) {
+                                        image = "http:" + image;
+                                    } else if (image.startsWith("/")) {
+                                        image = domainName + image;
+                                    }
+                                    try {
+                                        URL url1 = new URL(image);
+                                        Log.d(TAG, "Url is:" + url1.getAuthority() + ":" + url1.getAuthority() + ":" + url1.getPath());
+                                    } catch (MalformedURLException e) {
+                                        Log.d(TAG, " :" + e.getMessage());
+                                        if (url != null) {
+                                            image = url.getProtocol() + "://" + url.getAuthority() + (image.startsWith("/") ? "" : "/") + image;
+                                        }
+                                    }
                                     Log.d(TAG, "og:image:" + image);
                                 } else if (property.equals("og:type")) {
                                     String strType = elements2.attr("content");
@@ -209,6 +237,7 @@ public class UrlPreviewMainWorker extends HandlerThread {
                 feviconBitmap = ImageLoader.getInstance().loadImageSync(fevicon, imageSize);
             } catch (Exception e) {
                 Log.d(TAG, "Time Out exception" + e.getMessage());
+                feviconBitmap = null;
             }
         }
         Bitmap scaledBitmap = null;
@@ -218,6 +247,7 @@ public class UrlPreviewMainWorker extends HandlerThread {
                 backgroundBitmap = ImageLoader.getInstance().loadImageSync(image, imageSize);
             } catch (Exception e) {
                 Log.d(TAG, "Time Out exception" + e.getMessage());
+                backgroundBitmap = null;
             }
             if (backgroundBitmap != null) {
                 float originHeight = backgroundBitmap.getHeight();
@@ -250,6 +280,7 @@ public class UrlPreviewMainWorker extends HandlerThread {
         mResponseHandler.post(new Runnable() {
             @Override
             public void run() {
+                Log.d(TAG, "We are sending back:" + imageView.toString());
                 mCallback.onImageDownloaded(imageView, finalFeviconBitmap, finalbackgroundBitmap);
             }
         });

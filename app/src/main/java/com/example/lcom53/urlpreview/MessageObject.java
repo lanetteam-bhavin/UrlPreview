@@ -44,14 +44,14 @@ public class MessageObject implements Serializable {
 
     public void setmSequence(Integer mSequence) {
         this.mSequence = mSequence;
-        respId = UUID.randomUUID().toString();
     }
 
     private Integer mSequence;
-    private final AtomicInteger sequenceNumber = new AtomicInteger(0);
+    private static final AtomicInteger sequenceNumber = new AtomicInteger(0);
 
     MessageObject() {
         mSequence = sequenceNumber.getAndDecrement();
+        respId = UUID.randomUUID().toString();
         Log.d("Messageobject", "Sequence no :" + mSequence);
     }
 
@@ -123,14 +123,9 @@ public class MessageObject implements Serializable {
 
     String domainSnap;
 
-    public Priority getPriority() {
-        return Priority.NORMAL;
-    }
-
-    public enum Priority {
-        LOW,
-        NORMAL,
-        HIGH,
-        IMMEDIATE
+    @Override
+    public String toString() {
+        StringBuilder stringBuilder = new StringBuilder().append("Domain Name:" + domainName + ":Title:" + TitleDescription + ":SubTitle:" + subTitleDescription + ":Fevicon:" + fevicon + ":BackGround:" + domainSnap);
+        return stringBuilder.toString();
     }
 }
