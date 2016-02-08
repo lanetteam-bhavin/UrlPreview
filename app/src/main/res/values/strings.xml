@@ -1,4 +1,7 @@
 <resources>
     <string name="app_name">UrlPreview</string>
     <string name="action_settings">Settings</string>
+    <string name="title_activity_image_preview">ImagePreviewActivity</string>
+
+    <string name="hello_world">Hello world!</string>
 </resources>
